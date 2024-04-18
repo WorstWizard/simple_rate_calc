@@ -32,10 +32,6 @@ impl RateCalcApp {
     }
 }
 
-fn ingredient_row(ui: &mut egui::Ui) {
-
-}
-
 impl eframe::App for RateCalcApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -57,7 +53,7 @@ impl eframe::App for RateCalcApp {
             ui.separator();
 
             // Add Recipes
-            ui.add_enabled_ui(self.known_ingredients.len() >= 2, |ui| {
+            ui.add_enabled_ui(self.known_ingredients.len() > 0, |ui| {
                 
 
                 // Output dropdown
@@ -98,9 +94,11 @@ impl eframe::App for RateCalcApp {
 }
 
 fn ingredient_selector(ui: &mut egui::Ui, ingredient_list: &[Ingredient], selection: &mut IngredientWithCount) {
-    let dropdown = egui::ComboBox::from_id_source(selection.clone()).selected_text(&selection.0.name);
     let selected_ing = selection.0.clone();
+    let dropdown = egui::ComboBox::from_id_source(&selected_ing).selected_text(&selected_ing.name);
+    let dragval = egui::DragValue::new(&mut selection.1).clamp_range(0..=100).max_decimals(0);
     ui.horizontal(|ui| {
+        ui.add(dragval);
         if ingredient_list.is_empty() {
             dropdown.show_ui(ui, |ui| {ui.label("- - -")});
         } else {
