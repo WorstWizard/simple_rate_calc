@@ -1,8 +1,8 @@
-use std::{collections::{HashMap, HashSet}, iter::Map};
+use std::collections::{HashMap, HashSet};
 use eframe::egui::{self, Vec2};
 
-const HEIGHT: f32 = 300.0;
-const WIDTH: f32 = 300.0;
+const HEIGHT: f32 = 400.0;
+const WIDTH: f32 = 256.0;
 
 fn main() {
     let native_options = eframe::NativeOptions {
@@ -12,11 +12,23 @@ fn main() {
     eframe::run_native("Simple Rate Calc", native_options, Box::new(|cc| Box::new(RateCalcApp::new(cc)))).unwrap();
 }
 
+#[derive(PartialEq, Default)]
+enum SelectedTab {
+    #[default]
+    Rates,
+    Editing
+}
+
 #[derive(Default)]
 struct RateCalcApp {
-    desired_output_rate: f32,
     known_ingredients: Vec<Ingredient>,
     known_recipes: HashMap<Ingredient, Recipe>,
+    selected_tab: SelectedTab,
+
+    // For rate calculations
+    desired_output_rate: f32,
+    desired_output_ingredient: Ingredient,
+    // required_rates: HashMap<Ingredient, f32>,
     
     // For adding ingredients/recipes
     add_ingredient_text: String,
@@ -27,7 +39,7 @@ struct RateCalcApp {
 }
 
 impl RateCalcApp {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             desired_output_rate: 1.0,
             ..Self::default()
@@ -37,8 +49,53 @@ impl RateCalcApp {
 
 impl eframe::App for RateCalcApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            ui.columns(2, |cols| {
+                if cols[0].selectable_label(self.selected_tab == SelectedTab::Rates, "Rates").clicked() {
+                    self.selected_tab = SelectedTab::Rates
+                };
+                if cols[1].selectable_label(self.selected_tab == SelectedTab::Editing, "Edit Recipes").clicked() {
+                    self.selected_tab = SelectedTab::Editing
+                };
+            })
+        });
+        egui::CentralPanel::default().show(ctx, |ui| { match self.selected_tab {
+            SelectedTab::Rates => {
+            // Main settings
+            ui.horizontal(|ui| {
+                ui.label("Output");
+                let dropdown = egui::ComboBox::from_id_source("output").selected_text(&self.desired_output_ingredient.name);
+                dropdown.show_ui(ui, |ui| {
+                    for ingredient in &self.known_ingredients {
+                        let current_selection = *ingredient == self.desired_output_ingredient;
+                        if ui.selectable_label(
+                            current_selection,
+                            &ingredient.name
+                        ).clicked() && !current_selection {
+                            self.desired_output_ingredient = ingredient.clone();
+                        }
+                    }
+                });
+                ui.label("Rate");
+                ui.add(egui::DragValue::new(&mut self.desired_output_rate)
+                    .clamp_range(0.0..=f32::MAX)
+                    // .max_decimals(2)
+                    // .speed(0.05)
+                    .suffix("/s")
+                );
+            });
+            ui.separator();
 
+            // Recursive ingredient list
+            ui.columns(3, |cols| {
+                // cols[0].label("");
+                cols[1].label("Producers");
+                cols[2].label("Rate");
+            });
+            display_rates_info(ui, &self.desired_output_ingredient, self.desired_output_rate, &self.known_recipes);
+            
+            },
+            SelectedTab::Editing => {
             // Add Ingredients
             ui.horizontal(|ui| {
                 let add_ingredient_edit = egui::TextEdit::singleline(&mut self.add_ingredient_text)
@@ -62,18 +119,20 @@ impl eframe::App for RateCalcApp {
             ui.add_enabled_ui(self.known_ingredients.len() >= 1, |ui| {
 
                 // Output dropdown
-                ui.label("Output");
-                if ingredient_selector(ui, 0,
-                    self.known_ingredients.iter(),
-                    &mut self.add_recipe_output_ingredient,
-                    &mut self.add_recipe_used_ingredients
-                ) {
-                    for input_ing in self.add_recipe_input_ingredients.iter_mut() {
-                        if input_ing.0 == self.add_recipe_output_ingredient.0 {
-                            *input_ing = IngredientWithCount::default();
+                ui.horizontal(|ui| {
+                    ui.label("Output");
+                    if ingredient_selector(ui, 0,
+                        self.known_ingredients.iter(),
+                        &mut self.add_recipe_output_ingredient,
+                        &mut self.add_recipe_used_ingredients
+                    ) {
+                        for input_ing in self.add_recipe_input_ingredients.iter_mut() {
+                            if input_ing.0 == self.add_recipe_output_ingredient.0 {
+                                *input_ing = IngredientWithCount::default();
+                            }
                         }
                     }
-                }
+                });
 
                 // Craft time
                 ui.horizontal(|ui| {
@@ -150,44 +209,68 @@ impl eframe::App for RateCalcApp {
             if ui.add_enabled(valid_recipe, add_recipe_button).clicked() {
                 let recipe = Recipe {
                     craft_time: self.add_recipe_craft_time,
-                    output: self.add_recipe_output_ingredient.clone(),
+                    output_num: self.add_recipe_output_ingredient.1,
                     input: self.add_recipe_input_ingredients.clone()
                 };
                 self.known_recipes.insert(self.add_recipe_output_ingredient.0.clone(), recipe);
-            }
-
-            // // Main settings
-            // ui.horizontal(|ui| {
-            //     ui.label("Output");
-            //     // ui.add(egui::ComboBox::)
-            //     ui.label("Desired output rate");
-            //     ui.add(egui::DragValue::new(&mut self.desired_output_rate)
-            //         .clamp_range(0.0..=f32::MAX)
-            //         .max_decimals(2)
-            //         .speed(0.05)
-            //         .suffix("/s")
-            //     );
-            // });
-            // ui.separator();
-
-            // // Recursive ingredient list
-            // ui.vertical(|ui| {
-            //     ui.label("Some stuff");
-            //     ui.label("Some more stuff");
-            //     ui.label("Even more stuff");
-            // });
-
-            for recipe in self.known_recipes.values() {
-                ui.label(format!("{:?} <-{}s-- {:?}", recipe.output, recipe.craft_time, recipe.input));
+            }}
             }
         });
     }
 }
 
-fn detect_cyclical_recipe(output_ingredient: &Ingredient, input_ingredient: &Ingredient, known_recipes: &HashMap<Ingredient, Recipe>) -> bool {
-    fn just_ingredient<'a>(ing_count: &'a IngredientWithCount) -> &'a Ingredient {
-        &ing_count.0
+fn display_rates_info(
+    ui: &mut egui::Ui,
+    output_ingredient: &Ingredient,
+    output_rate: f32,
+    known_recipes: &HashMap<Ingredient, Recipe>
+) {
+    fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
+        ui.columns(3, |cols| {
+            cols[0].label(name);
+            if producers > 0.0 {
+                cols[1].label(format!("{:.1}", producers));
+            }
+            cols[2].label(format!("{:.2}", rate));
+        });
     }
+
+    let (num_producers, input_rates) = compute_required_rates(output_ingredient, output_rate, known_recipes);
+    info_display(ui, &output_ingredient.name, num_producers, output_rate);
+    if let Some(rates) = input_rates {
+        if !rates.is_empty() {
+            let header = egui::CollapsingHeader::new("").id_source(output_ingredient);
+            header.default_open(true).show_unindented(ui, |ui| {
+                for (ing, rate) in rates {
+                    display_rates_info(ui, &ing, rate, known_recipes);
+                }
+            });
+        }
+    }
+}
+
+fn compute_required_rates(
+    output_ingredient: &Ingredient,
+    output_rate: f32,
+    // input_rates: &mut HashMap<Ingredient, f32>,
+    known_recipes: &HashMap<Ingredient, Recipe>
+) -> (f32, Option<Vec<(Ingredient, f32)>>) {
+    if let Some(recipe) = known_recipes.get(output_ingredient) {
+        let cycles_per_sec = output_rate/(recipe.output_num as f32);
+        let num_producers = cycles_per_sec*recipe.craft_time;
+
+        let mut required_input_rates = Vec::with_capacity(recipe.input.len());
+        for input_ing in recipe.input.iter() {
+            let input_rate = (input_ing.1 as f32)*cycles_per_sec;
+            required_input_rates.push((input_ing.0.clone(),input_rate));
+        }
+        (num_producers, Some(required_input_rates))
+    } else {
+        (0.0, None)
+    }
+}
+
+fn detect_cyclical_recipe(output_ingredient: &Ingredient, input_ingredient: &Ingredient, known_recipes: &HashMap<Ingredient, Recipe>) -> bool {
     if let Some(recipe) = known_recipes.get(input_ingredient) {
         for (input_ing, _) in &recipe.input {
             if *input_ing == *output_ingredient {
@@ -242,6 +325,6 @@ struct Ingredient {
 type IngredientWithCount = (Ingredient, i32);
 struct Recipe {
     craft_time: f32,
-    output: IngredientWithCount,
+    output_num: i32,
     input: Vec<IngredientWithCount>
 }
