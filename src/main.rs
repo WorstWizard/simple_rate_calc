@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, iter::Map};
 use eframe::egui::{self, Vec2};
 
 const HEIGHT: f32 = 300.0;
@@ -16,7 +16,7 @@ fn main() {
 struct RateCalcApp {
     desired_output_rate: f32,
     known_ingredients: Vec<Ingredient>,
-    known_recipes: HashMap<String, Recipe>,
+    known_recipes: HashMap<Ingredient, Recipe>,
     
     // For adding ingredients/recipes
     add_ingredient_text: String,
@@ -84,13 +84,34 @@ impl eframe::App for RateCalcApp {
                 
                 // Inputs
                 ui.label("Inputs");
+                fn filter_available_ingredients(
+                    output_ingredient: &Ingredient,
+                    input_ingredient: &Ingredient,
+                    used_ingredients: &mut HashSet<Ingredient>,
+                    known_ingredients: &Vec<Ingredient>,
+                    known_recipes: &HashMap<Ingredient, Recipe>
+                ) -> Vec<Ingredient> {
+                    let mut available_ingredients = Vec::with_capacity(known_ingredients.len());
+                    if !input_ingredient.name.is_empty() { available_ingredients.push(input_ingredient.clone()) }
+
+                    available_ingredients.extend(known_ingredients.iter().filter_map(|ing| {
+                        let legal = !used_ingredients.contains(ing)
+                        && !detect_cyclical_recipe(output_ingredient, ing, known_recipes);
+                        legal.then_some(ing.clone())
+                    }));
+                
+                    available_ingredients
+                }
+
                 let mut remove_input = None;
                 for (i, input_ing) in self.add_recipe_input_ingredients.iter_mut().enumerate() {
-                    let mut available_ingredients = Vec::with_capacity(self.known_ingredients.len());
-                    if !input_ing.0.name.is_empty() { available_ingredients.push(input_ing.0.clone()) }
-                    available_ingredients.extend(self.known_ingredients.iter().filter_map(|ing|
-                        if self.add_recipe_used_ingredients.contains(&ing) { None } else { Some(ing.clone()) }
-                    ));
+                    let available_ingredients = filter_available_ingredients(
+                        &self.add_recipe_output_ingredient.0,
+                        &input_ing.0,
+                        &mut self.add_recipe_used_ingredients,
+                        &self.known_ingredients,
+                        &self.known_recipes
+                    );
                     ui.horizontal(|ui| {
                         ingredient_selector(ui, i+1,
                             available_ingredients.iter(),
@@ -117,6 +138,9 @@ impl eframe::App for RateCalcApp {
 
             // Add recipe to system
 
+            // Validity check is only partial here; just checks for whether each input and output are non-zero
+            // The rest of validity checking is done by relying on only valid ingredients being picked for inputs
+            // earlier. If this isn't the case, it might get fucked up.
             let valid_recipe =
             !(
                 ingredient_is_empty(&self.add_recipe_output_ingredient)
@@ -124,7 +148,12 @@ impl eframe::App for RateCalcApp {
             );
             let add_recipe_button = egui::Button::new("Add Recipe");
             if ui.add_enabled(valid_recipe, add_recipe_button).clicked() {
-                todo!("add recipe");
+                let recipe = Recipe {
+                    craft_time: self.add_recipe_craft_time,
+                    output: self.add_recipe_output_ingredient.clone(),
+                    input: self.add_recipe_input_ingredients.clone()
+                };
+                self.known_recipes.insert(self.add_recipe_output_ingredient.0.clone(), recipe);
             }
 
             // // Main settings
@@ -148,11 +177,27 @@ impl eframe::App for RateCalcApp {
             //     ui.label("Even more stuff");
             // });
 
-            for ingredient in &self.known_ingredients {
-                ui.label(&ingredient.name);
+            for recipe in self.known_recipes.values() {
+                ui.label(format!("{:?} <-{}s-- {:?}", recipe.output, recipe.craft_time, recipe.input));
             }
         });
     }
+}
+
+fn detect_cyclical_recipe(output_ingredient: &Ingredient, input_ingredient: &Ingredient, known_recipes: &HashMap<Ingredient, Recipe>) -> bool {
+    fn just_ingredient<'a>(ing_count: &'a IngredientWithCount) -> &'a Ingredient {
+        &ing_count.0
+    }
+    if let Some(recipe) = known_recipes.get(input_ingredient) {
+        for (input_ing, _) in &recipe.input {
+            if *input_ing == *output_ingredient {
+                return true;
+            } else {
+                return detect_cyclical_recipe(output_ingredient, input_ing, known_recipes);
+            }
+        }
+    }
+    false
 }
 
 fn ingredient_selector<'a, I>(ui: &mut egui::Ui, id_source: impl std::hash::Hash, ingredient_list: I, selection: &mut IngredientWithCount, used_ingredients: &mut HashSet<Ingredient>) -> bool
@@ -190,7 +235,7 @@ fn ingredient_is_empty(ing: &IngredientWithCount) -> bool {
     ing.1 == 0 || ing.0.name.is_empty()
 }
 
-#[derive(Default, Hash, Clone, PartialEq, Eq)]
+#[derive(Default, Hash, Clone, PartialEq, Eq, Debug)]
 struct Ingredient {
     pub name: String
 }
