@@ -15,12 +15,15 @@ fn main() {
 #[derive(Default)]
 struct RateCalcApp {
     desired_output_rate: f32,
+    known_ingredients: Vec<Ingredient>,
+    known_recipes: HashMap<String, Recipe>,
+    
+    // For adding ingredients/recipes
     add_ingredient_text: String,
+    add_recipe_craft_time: f32,
     add_recipe_output_ingredient: IngredientWithCount,
     add_recipe_input_ingredients: Vec<IngredientWithCount>,
     add_recipe_used_ingredients: HashSet<Ingredient>,
-    known_ingredients: Vec<Ingredient>,
-    known_recipes: HashMap<String, Recipe>
 }
 
 impl RateCalcApp {
@@ -71,6 +74,13 @@ impl eframe::App for RateCalcApp {
                         }
                     }
                 }
+
+                // Craft time
+                ui.horizontal(|ui| {
+                    let dragval = egui::DragValue::new(&mut self.add_recipe_craft_time).clamp_range(0.0..=f32::MAX).max_decimals(1);
+                    ui.label("Craft time ");
+                    ui.add(dragval);
+                });
                 
                 // Inputs
                 ui.label("Inputs");
