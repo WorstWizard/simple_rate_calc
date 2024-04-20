@@ -179,7 +179,7 @@ impl eframe::App for RateCalcApp {
                     fn ingredient_is_empty(ing_w_c: &IngredientWithCount) -> bool {
                         ing_w_c.count == 0 || ing_w_c.ing.name.is_empty()
                     }
-                    let valid_recipe = !(ingredient_is_empty(&self.recipe_builder.output_ingredient)
+                    let valid_recipe = !(ingredient_is_empty(self.recipe_builder.get_output())
                         || self.recipe_builder.inputs()
                             .any(ingredient_is_empty));
                     let add_recipe_button = egui::Button::new("Add Recipe");
@@ -290,17 +290,17 @@ fn input_ingredient_selectors(
 
 fn output_ingredient_selector(ui: &mut egui::Ui, rdb: &RecipeDB, recipe_builder: &mut RecipeBuilder) {
     let dropdown = egui::ComboBox::from_id_source("add_ingredient_output")
-        .selected_text(&recipe_builder.output_ingredient.ing.name);
+        .selected_text(&recipe_builder.get_output().ing.name);
     ui.horizontal(|ui| {
         {
-            let dragval = egui::DragValue::new(&mut recipe_builder.output_ingredient.count)
+            let dragval = egui::DragValue::new(recipe_builder.get_output_count_mut())
                 .clamp_range(0..=100)
                 .max_decimals(0);
             ui.add(dragval);
         }
         dropdown.show_ui(ui, |ui| {
             for ing in &rdb.known_ingredients {
-                if *ing != recipe_builder.output_ingredient.ing && ui
+                if *ing != recipe_builder.get_output().ing && ui
                     .selectable_label(false, &ing.name)
                     .clicked()
                 {

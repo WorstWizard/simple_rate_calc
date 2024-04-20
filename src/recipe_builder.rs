@@ -4,8 +4,8 @@ use crate::data::*;
 #[derive(Default)]
 pub struct RecipeBuilder {
     pub craft_time: f32,
-    pub output_ingredient: IngredientWithCount,
-    pub used_ingredients: HashSet<Ingredient>,
+    used_ingredients: HashSet<Ingredient>,
+    output_ingredient: IngredientWithCount,
     input_ingredients: Vec<IngredientWithCount>,
     available_ingredients: Vec<Ingredient>
 }
@@ -26,7 +26,6 @@ impl RecipeBuilder {
     pub fn available_ingredients(&self) -> &Vec<Ingredient> {
         &self.available_ingredients
     }
-
     pub fn build_recipe(&self, rdb: &mut RecipeDB) -> Result<(), ()> {
         if self.is_recipe_valid(rdb) {
             let recipe = Recipe {
@@ -40,7 +39,6 @@ impl RecipeBuilder {
             Err(())
         }
     }
-
     pub fn inputs(&self) -> std::slice::Iter<IngredientWithCount> {
         self.input_ingredients.iter()
     }
@@ -49,6 +47,9 @@ impl RecipeBuilder {
     }
     pub fn get_input(&self, index: usize) -> Option<&IngredientWithCount> {
         self.input_ingredients.get(index)
+    }
+    pub fn get_output(&self) -> &IngredientWithCount {
+        &self.output_ingredient
     }
     pub fn change_input_ingredient(&mut self, index: usize, value: Ingredient) {
         if let Some(ing_c) = self.input_ingredients.get_mut(index) {
@@ -69,6 +70,9 @@ impl RecipeBuilder {
     }
     pub fn get_input_count_mut(&mut self, index: usize) -> &mut i32 {
         &mut self.input_ingredients[index].count
+    }
+    pub fn get_output_count_mut(&mut self) -> &mut i32 {
+        &mut self.output_ingredient.count
     }
     pub fn add_blank_input(&mut self) {
         self.input_ingredients.push(IngredientWithCount::default());
