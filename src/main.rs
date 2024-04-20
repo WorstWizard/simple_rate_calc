@@ -1,10 +1,11 @@
 use eframe::egui::{self, Vec2};
 use std::collections::{HashMap, HashSet};
 
+mod data;
 mod calc;
 mod recipe_builder;
+use data::*;
 use recipe_builder::*;
-use calc::*;
 
 const HEIGHT: f32 = 400.0;
 const WIDTH: f32 = 256.0;
@@ -33,20 +34,15 @@ enum SelectedTab {
 
 #[derive(Default)]
 struct RateCalcApp {
-    calc: Calculator,
+    recipe_db: RecipeDB,
     selected_tab: SelectedTab,
 
     // For rate calculations
     desired_output_rate: f32,
     desired_output_ingredient: Ingredient,
-    // required_rates: HashMap<Ingredient, f32>,
 
     // For adding ingredients/recipes
     add_ingredient_text: String,
-    // add_recipe_craft_time: f32,
-    // add_recipe_output_ingredient: IngredientWithCount,
-    // add_recipe_input_ingredients: Vec<IngredientWithCount>,
-    // add_recipe_used_ingredients: HashSet<Ingredient>,
     recipe_builder: RecipeBuilder,
 }
 
@@ -86,7 +82,7 @@ impl eframe::App for RateCalcApp {
                         let dropdown = egui::ComboBox::from_id_source("output")
                             .selected_text(&self.desired_output_ingredient.name);
                         dropdown.show_ui(ui, |ui| {
-                            for ingredient in &self.calc.known_ingredients {
+                            for ingredient in &self.recipe_db.known_ingredients {
                                 let current_selection =
                                     *ingredient == self.desired_output_ingredient;
                                 if ui
@@ -119,7 +115,7 @@ impl eframe::App for RateCalcApp {
                         ui,
                         &self.desired_output_ingredient,
                         self.desired_output_rate,
-                        &self.calc.known_recipes,
+                        &self.recipe_db.known_recipes,
                     );
                 }
                 SelectedTab::Editing => {
@@ -139,8 +135,8 @@ impl eframe::App for RateCalcApp {
                             let new_ing = Ingredient {
                                 name: self.add_ingredient_text.clone(),
                             };
-                            if !self.calc.known_ingredients.contains(&new_ing) {
-                                self.calc.known_ingredients.push(new_ing)
+                            if !self.recipe_db.known_ingredients.contains(&new_ing) {
+                                self.recipe_db.known_ingredients.push(new_ing)
                             }
                         }
                     });
@@ -148,14 +144,14 @@ impl eframe::App for RateCalcApp {
                     ui.separator();
 
                     // Add Recipes
-                    ui.add_enabled_ui(!self.calc.known_ingredients.is_empty(), |ui| {
+                    ui.add_enabled_ui(!self.recipe_db.known_ingredients.is_empty(), |ui| {
                         // Output dropdown
                         ui.horizontal(|ui| {
                             ui.label("Output");
                             if ingredient_selector(
                                 ui,
                                 0,
-                                self.calc.known_ingredients.iter(),
+                                self.recipe_db.known_ingredients.iter(),
                                 &mut self.recipe_builder.output_ingredient,
                                 &mut self.recipe_builder.used_ingredients,
                             ) {
@@ -178,45 +174,13 @@ impl eframe::App for RateCalcApp {
 
                         // Inputs
                         ui.label("Inputs");
-                        fn filter_available_ingredients(
-                            output_ingredient: &Ingredient,
-                            input_ingredient: &Ingredient,
-                            used_ingredients: &mut HashSet<Ingredient>,
-                            known_ingredients: &[Ingredient],
-                            known_recipes: &HashMap<Ingredient, Recipe>,
-                        ) -> Vec<Ingredient> {
-                            let mut available_ingredients =
-                                Vec::with_capacity(known_ingredients.len());
-                            if !input_ingredient.name.is_empty() {
-                                available_ingredients.push(input_ingredient.clone())
-                            }
 
-                            available_ingredients.extend(known_ingredients.iter().filter_map(
-                                |ing| {
-                                    let legal = !used_ingredients.contains(ing)
-                                        && !detect_cyclical_recipe(
-                                            output_ingredient,
-                                            ing,
-                                            known_recipes,
-                                        );
-                                    legal.then_some(ing.clone())
-                                },
-                            ));
-
-                            available_ingredients
-                        }
-
+                        self.recipe_builder.recompute_available_ingredients(&self.recipe_db);
                         let mut remove_input = None;
                         for (i, input_ing) in
                             self.recipe_builder.input_ingredients.iter_mut().enumerate()
                         {
-                            let available_ingredients = filter_available_ingredients(
-                                &self.recipe_builder.output_ingredient.ing,
-                                &input_ing.ing,
-                                &mut self.recipe_builder.used_ingredients,
-                                &self.calc.known_ingredients,
-                                &self.calc.known_recipes,
-                            );
+                            let available_ingredients = &self.recipe_builder.available_ingredients;
                             ui.horizontal(|ui| {
                                 ingredient_selector(
                                     ui,
@@ -227,12 +191,11 @@ impl eframe::App for RateCalcApp {
                                 );
                                 if ui.button("X").clicked() {
                                     remove_input = Some(i);
-                                    self.recipe_builder.used_ingredients.remove(&input_ing.ing);
                                 }
                             });
                         }
                         if let Some(i) = remove_input {
-                            self.recipe_builder.input_ingredients.remove(i);
+                            self.recipe_builder.remove_input(i);
                         }
 
                         if ui.button("+").clicked() {
@@ -259,7 +222,7 @@ impl eframe::App for RateCalcApp {
                             output_num: self.recipe_builder.output_ingredient.count,
                             inputs: self.recipe_builder.input_ingredients.clone(),
                         };
-                        self.calc.known_recipes
+                        self.recipe_db.known_recipes
                             .insert(self.recipe_builder.output_ingredient.ing.clone(), recipe);
                     }
                 }
@@ -318,23 +281,6 @@ fn compute_required_rates(
     } else {
         (0.0, None)
     }
-}
-
-fn detect_cyclical_recipe(
-    output_ingredient: &Ingredient,
-    input_ingredient: &Ingredient,
-    known_recipes: &HashMap<Ingredient, Recipe>,
-) -> bool {
-    if let Some(recipe) = known_recipes.get(input_ingredient) {
-        for input in &recipe.inputs {
-            if input.ing == *output_ingredient
-                || detect_cyclical_recipe(output_ingredient, &input.ing, known_recipes)
-            {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn ingredient_selector<'a, I>(
