@@ -2,6 +2,8 @@ use eframe::egui::{self, Vec2};
 use std::collections::{HashMap, HashSet};
 
 mod calc;
+mod recipe_builder;
+use recipe_builder::*;
 use calc::*;
 
 const HEIGHT: f32 = 400.0;
@@ -41,10 +43,11 @@ struct RateCalcApp {
 
     // For adding ingredients/recipes
     add_ingredient_text: String,
-    add_recipe_craft_time: f32,
-    add_recipe_output_ingredient: IngredientWithCount,
-    add_recipe_input_ingredients: Vec<IngredientWithCount>,
-    add_recipe_used_ingredients: HashSet<Ingredient>,
+    // add_recipe_craft_time: f32,
+    // add_recipe_output_ingredient: IngredientWithCount,
+    // add_recipe_input_ingredients: Vec<IngredientWithCount>,
+    // add_recipe_used_ingredients: HashSet<Ingredient>,
+    recipe_builder: RecipeBuilder,
 }
 
 impl RateCalcApp {
@@ -153,11 +156,11 @@ impl eframe::App for RateCalcApp {
                                 ui,
                                 0,
                                 self.calc.known_ingredients.iter(),
-                                &mut self.add_recipe_output_ingredient,
-                                &mut self.add_recipe_used_ingredients,
+                                &mut self.recipe_builder.output_ingredient,
+                                &mut self.recipe_builder.used_ingredients,
                             ) {
-                                for input_ing in self.add_recipe_input_ingredients.iter_mut() {
-                                    if input_ing.ing == self.add_recipe_output_ingredient.ing {
+                                for input_ing in self.recipe_builder.input_ingredients.iter_mut() {
+                                    if input_ing.ing == self.recipe_builder.output_ingredient.ing {
                                         *input_ing = IngredientWithCount::default();
                                     }
                                 }
@@ -166,7 +169,7 @@ impl eframe::App for RateCalcApp {
 
                         // Craft time
                         ui.horizontal(|ui| {
-                            let dragval = egui::DragValue::new(&mut self.add_recipe_craft_time)
+                            let dragval = egui::DragValue::new(&mut self.recipe_builder.craft_time)
                                 .clamp_range(0.0..=f32::MAX)
                                 .max_decimals(1);
                             ui.label("Craft time ");
@@ -205,12 +208,12 @@ impl eframe::App for RateCalcApp {
 
                         let mut remove_input = None;
                         for (i, input_ing) in
-                            self.add_recipe_input_ingredients.iter_mut().enumerate()
+                            self.recipe_builder.input_ingredients.iter_mut().enumerate()
                         {
                             let available_ingredients = filter_available_ingredients(
-                                &self.add_recipe_output_ingredient.ing,
+                                &self.recipe_builder.output_ingredient.ing,
                                 &input_ing.ing,
-                                &mut self.add_recipe_used_ingredients,
+                                &mut self.recipe_builder.used_ingredients,
                                 &self.calc.known_ingredients,
                                 &self.calc.known_recipes,
                             );
@@ -220,20 +223,20 @@ impl eframe::App for RateCalcApp {
                                     i + 1,
                                     available_ingredients.iter(),
                                     input_ing,
-                                    &mut self.add_recipe_used_ingredients,
+                                    &mut self.recipe_builder.used_ingredients,
                                 );
                                 if ui.button("X").clicked() {
                                     remove_input = Some(i);
-                                    self.add_recipe_used_ingredients.remove(&input_ing.ing);
+                                    self.recipe_builder.used_ingredients.remove(&input_ing.ing);
                                 }
                             });
                         }
                         if let Some(i) = remove_input {
-                            self.add_recipe_input_ingredients.remove(i);
+                            self.recipe_builder.input_ingredients.remove(i);
                         }
 
                         if ui.button("+").clicked() {
-                            self.add_recipe_input_ingredients
+                            self.recipe_builder.input_ingredients
                                 .push(IngredientWithCount::default());
                         }
                     });
@@ -245,20 +248,19 @@ impl eframe::App for RateCalcApp {
                     // Validity check is only partial here; just checks for whether each input and output are non-zero
                     // The rest of validity checking is done by relying on only valid ingredients being picked for inputs
                     // earlier. If this isn't the case, it might get fucked up.
-                    let valid_recipe = !(ingredient_is_empty(&self.add_recipe_output_ingredient)
-                        || self
-                            .add_recipe_input_ingredients
+                    let valid_recipe = !(ingredient_is_empty(&self.recipe_builder.output_ingredient)
+                        || self.recipe_builder.input_ingredients
                             .iter()
                             .any(ingredient_is_empty));
                     let add_recipe_button = egui::Button::new("Add Recipe");
                     if ui.add_enabled(valid_recipe, add_recipe_button).clicked() {
                         let recipe = Recipe {
-                            craft_time: self.add_recipe_craft_time,
-                            output_num: self.add_recipe_output_ingredient.count,
-                            inputs: self.add_recipe_input_ingredients.clone(),
+                            craft_time: self.recipe_builder.craft_time,
+                            output_num: self.recipe_builder.output_ingredient.count,
+                            inputs: self.recipe_builder.input_ingredients.clone(),
                         };
                         self.calc.known_recipes
-                            .insert(self.add_recipe_output_ingredient.ing.clone(), recipe);
+                            .insert(self.recipe_builder.output_ingredient.ing.clone(), recipe);
                     }
                 }
             }
