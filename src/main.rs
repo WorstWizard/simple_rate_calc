@@ -6,6 +6,7 @@ mod calc;
 mod recipe_builder;
 mod saveload;
 use data::*;
+use calc::*;
 use recipe_builder::*;
 use saveload::*;
 
@@ -22,7 +23,7 @@ fn main() {
     eframe::run_native(
         "Simple Rate Calc",
         native_options,
-        Box::new(|cc| Box::new(RateCalcApp::new(cc))),
+        Box::new(|_cc| Box::new(RateCalcApp::default())),
     )
     .unwrap();
 }
@@ -40,21 +41,11 @@ struct RateCalcApp {
     selected_tab: SelectedTab,
 
     // For rate calculations
-    desired_output_rate: f32,
-    desired_output_ingredient: Ingredient,
+    calc: Calculator,
 
     // For adding ingredients/recipes
     add_ingredient_text: String,
     recipe_builder: RecipeBuilder,
-}
-
-impl RateCalcApp {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self {
-            desired_output_rate: 1.0,
-            ..Self::default()
-        }
-    }
 }
 
 impl eframe::App for RateCalcApp {
@@ -82,26 +73,24 @@ impl eframe::App for RateCalcApp {
                     ui.horizontal(|ui| {
                         ui.label("Output");
                         let dropdown = egui::ComboBox::from_id_source("output")
-                            .selected_text(&self.desired_output_ingredient.name);
+                            .selected_text(&self.calc.output_ingredient.name);
                         dropdown.show_ui(ui, |ui| {
                             for ingredient in &self.recipe_db.known_ingredients {
                                 let current_selection =
-                                    *ingredient == self.desired_output_ingredient;
+                                    *ingredient == self.calc.output_ingredient;
                                 if ui
                                     .selectable_label(current_selection, &ingredient.name)
                                     .clicked()
                                     && !current_selection
                                 {
-                                    self.desired_output_ingredient = ingredient.clone();
+                                    self.calc.output_ingredient = ingredient.clone();
                                 }
                             }
                         });
                         ui.label("Rate");
                         ui.add(
-                            egui::DragValue::new(&mut self.desired_output_rate)
+                            egui::DragValue::new(&mut self.calc.output_rate)
                                 .clamp_range(0.0..=f32::MAX)
-                                // .max_decimals(2)
-                                // .speed(0.05)
                                 .suffix("/s"),
                         );
                     });
@@ -115,8 +104,8 @@ impl eframe::App for RateCalcApp {
                     });
                     display_rates_info(
                         ui,
-                        &self.desired_output_ingredient,
-                        self.desired_output_rate,
+                        &self.calc.output_ingredient,
+                        self.calc.output_rate,
                         &self.recipe_db.known_recipes,
                     );
                 }
