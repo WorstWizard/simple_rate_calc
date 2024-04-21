@@ -31,8 +31,8 @@ fn main() {
 #[derive(PartialEq, Default)]
 enum SelectedTab {
     #[default]
-    Rates,
     Editing,
+    Rates,
 }
 
 #[derive(Default)]
@@ -42,6 +42,7 @@ struct RateCalcApp {
 
     // For rate calculations
     calc: Calculator,
+    aggregate_results: bool,
 
     // For adding ingredients/recipes
     add_ingredient_text: String,
@@ -53,17 +54,18 @@ impl eframe::App for RateCalcApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.columns(2, |cols| {
                 if cols[0]
-                    .selectable_label(self.selected_tab == SelectedTab::Rates, "Rates")
-                    .clicked()
-                {
-                    self.selected_tab = SelectedTab::Rates
-                };
-                if cols[1]
                     .selectable_label(self.selected_tab == SelectedTab::Editing, "Edit Recipes")
                     .clicked()
                 {
                     self.selected_tab = SelectedTab::Editing
                 };
+                if cols[1]
+                    .selectable_label(self.selected_tab == SelectedTab::Rates, "Rates")
+                    .clicked()
+                {
+                    self.selected_tab = SelectedTab::Rates
+                };
+
             })
         });
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -94,20 +96,31 @@ impl eframe::App for RateCalcApp {
                                 .suffix("/s"),
                         );
                     });
+                    ui.horizontal(|ui| {
+                        ui.label("Aggregate results");
+                        ui.checkbox(&mut self.aggregate_results, "");
+                    });
                     ui.separator();
 
-                    // Recursive ingredient list
-                    ui.columns(3, |cols| {
-                        // cols[0].label("");
-                        cols[1].label("Producers");
-                        cols[2].label("Rate");
-                    });
-                    display_rates_info(
-                        ui,
-                        &self.calc.output_ingredient,
-                        self.calc.output_rate,
-                        &self.recipe_db.known_recipes,
-                    );
+                    if !self.calc.output_ingredient.name.is_empty() {
+                        // Recursive ingredient list
+                        ui.columns(3, |cols| {
+                            // cols[0].label("");
+                            cols[1].label("Producers");
+                            cols[2].label("Rate");
+                        });
+
+                        if !self.aggregate_results {
+                            display_rates_info(
+                                ui,
+                                &self.calc.output_ingredient,
+                                self.calc.output_rate,
+                                &self.recipe_db.known_recipes,
+                            );
+                        } else {
+                            display_aggregate_rates_info(ui, &self.calc, &self.recipe_db.known_recipes)
+                        }
+                    }
                 }
                 SelectedTab::Editing => {
                     // Save load buttons at the *bottom*
@@ -210,18 +223,8 @@ fn display_rates_info(
     output_rate: f32,
     known_recipes: &HashMap<Ingredient, Recipe>,
 ) {
-    fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
-        ui.columns(3, |cols| {
-            cols[0].label(name);
-            if producers > 0.0 {
-                cols[1].label(format!("{:.1}", producers));
-            }
-            cols[2].label(format!("{:.2}", rate));
-        });
-    }
-
     let (num_producers, input_rates) =
-        compute_required_rates(output_ingredient, output_rate, known_recipes);
+        Calculator::compute_required_rates(output_ingredient, output_rate, known_recipes);
     info_display(ui, &output_ingredient.name, num_producers, output_rate);
     if let Some(rates) = input_rates {
         if !rates.is_empty() {
@@ -235,25 +238,22 @@ fn display_rates_info(
     }
 }
 
-fn compute_required_rates(
-    output_ingredient: &Ingredient,
-    output_rate: f32,
-    // input_rates: &mut HashMap<Ingredient, f32>,
-    known_recipes: &HashMap<Ingredient, Recipe>,
-) -> (f32, Option<Vec<(Ingredient, f32)>>) {
-    if let Some(recipe) = known_recipes.get(output_ingredient) {
-        let cycles_per_sec = output_rate / (recipe.output_num as f32);
-        let num_producers = cycles_per_sec * recipe.craft_time;
-
-        let mut required_input_rates = Vec::with_capacity(recipe.inputs.len());
-        for input_ing in recipe.inputs.iter() {
-            let input_rate = (input_ing.count as f32) * cycles_per_sec;
-            required_input_rates.push((input_ing.ing.clone(), input_rate));
-        }
-        (num_producers, Some(required_input_rates))
-    } else {
-        (0.0, None)
+fn display_aggregate_rates_info(ui: &mut egui::Ui, calc: &Calculator, known_recipes: &HashMap<Ingredient, Recipe>) {
+    let aggregate_rates = calc.compute_aggregate_rates(known_recipes);
+    // println!("{:?}", aggregate_rates);
+    for (ingredient, producers, rate) in aggregate_rates {
+        info_display(ui, &ingredient.name, producers, rate)
     }
+}
+
+fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
+    ui.columns(3, |cols| {
+        cols[0].label(name);
+        if producers > 0.0 {
+            cols[1].label(format!("{:.1}", producers));
+        }
+        cols[2].label(format!("{:.2}", rate));
+    });
 }
 
 fn input_ingredient_selectors(
