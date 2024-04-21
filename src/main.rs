@@ -4,8 +4,10 @@ use std::collections::HashMap;
 mod data;
 mod calc;
 mod recipe_builder;
+mod saveload;
 use data::*;
 use recipe_builder::*;
+use saveload::*;
 
 const HEIGHT: f32 = 400.0;
 const WIDTH: f32 = 256.0;
@@ -119,6 +121,24 @@ impl eframe::App for RateCalcApp {
                     );
                 }
                 SelectedTab::Editing => {
+                    // Save load buttons at the *bottom*
+                    egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+                        ui.columns(2, |cols| {
+                            if cols[0].button("Save").clicked() {
+                                //Save
+                                save_database(&self.recipe_db);
+                            }
+                            if cols[1].button("Load").clicked() {
+                                //Load
+                                match load_database() {
+                                    Ok(rdb) => {
+                                        self.recipe_db = rdb;
+                                    },
+                                    Err(_) => ()
+                                }
+                            }
+                        })
+                    });
                     // Add Ingredients
                     ui.horizontal(|ui| {
                         let add_ingredient_edit =
