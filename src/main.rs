@@ -102,25 +102,29 @@ impl eframe::App for RateCalcApp {
                     });
                     ui.separator();
 
-                    if !self.calc.output_ingredient.name.is_empty() {
-                        // Recursive ingredient list
-                        ui.columns(3, |cols| {
-                            // cols[0].label("");
-                            cols[1].label("Producers");
-                            cols[2].label("Rate");
-                        });
-
-                        if !self.aggregate_results {
-                            display_rates_info(
-                                ui,
-                                &self.calc.output_ingredient,
-                                self.calc.output_rate,
-                                &self.recipe_db.known_recipes,
-                            );
-                        } else {
-                            display_aggregate_rates_info(ui, &self.calc, &self.recipe_db.known_recipes)
+                    let scroll_area = egui::ScrollArea::vertical();
+                    scroll_area.show(ui, |ui| {
+                        if !self.calc.output_ingredient.name.is_empty() {
+                            // Recursive ingredient list
+                            ui.columns(3, |cols| {
+                                // cols[0].label("");
+                                cols[1].label("Producers");
+                                cols[2].label("Rate");
+                            });
+    
+                            if !self.aggregate_results {
+                                display_rates_info(
+                                    ui,
+                                    0,
+                                    &self.calc.output_ingredient,
+                                    self.calc.output_rate,
+                                    &self.recipe_db.known_recipes,
+                                );
+                            } else {
+                                display_aggregate_rates_info(ui, &self.calc, &self.recipe_db.known_recipes)
+                            }
                         }
-                    }
+                    });
                 }
                 SelectedTab::Editing => {
                     // Save load buttons at the *bottom*
@@ -219,23 +223,25 @@ impl eframe::App for RateCalcApp {
 
 fn display_rates_info(
     ui: &mut egui::Ui,
+    mut counter: u32,
     output_ingredient: &Ingredient,
     output_rate: f32,
     known_recipes: &HashMap<Ingredient, Recipe>,
-) {
+) -> u32 {
     let (num_producers, input_rates) =
         Calculator::compute_required_rates(output_ingredient, output_rate, known_recipes);
     info_display(ui, &output_ingredient.name, num_producers, output_rate);
     if let Some(rates) = input_rates {
         if !rates.is_empty() {
-            let header = egui::CollapsingHeader::new("").id_source(output_ingredient);
-            header.default_open(true).show_unindented(ui, |ui| {
+            let header = egui::CollapsingHeader::new("").id_source(counter);
+            header.default_open(false).show_unindented(ui, |ui| {
                 for (ing, rate) in rates {
-                    display_rates_info(ui, &ing, rate, known_recipes);
+                    counter = display_rates_info(ui, counter, &ing, rate, known_recipes) + 1;
                 }
             });
         }
     }
+    counter
 }
 
 fn display_aggregate_rates_info(ui: &mut egui::Ui, calc: &Calculator, known_recipes: &HashMap<Ingredient, Recipe>) {
