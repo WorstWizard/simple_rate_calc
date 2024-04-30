@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-#[derive(Default, Hash, Clone, PartialEq, Eq, Debug)]
+#[derive(Default, Hash, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct Ingredient {
     pub name: String,
 }

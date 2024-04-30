@@ -162,7 +162,8 @@ impl eframe::App for RateCalcApp {
                                 name: self.add_ingredient_text.clone(),
                             };
                             if !self.recipe_db.known_ingredients.contains(&new_ing) {
-                                self.recipe_db.known_ingredients.push(new_ing)
+                                self.recipe_db.known_ingredients.push(new_ing);
+                                self.recipe_db.known_ingredients.sort()
                             }
                         }
                     });
