@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::data::*;
+use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct RecipeBuilder {
@@ -7,20 +7,17 @@ pub struct RecipeBuilder {
     used_ingredients: HashSet<Ingredient>,
     output_ingredient: IngredientWithCount,
     input_ingredients: Vec<IngredientWithCount>,
-    available_ingredients: Vec<Ingredient>
+    available_ingredients: Vec<Ingredient>,
 }
 impl RecipeBuilder {
     pub fn recompute_available_ingredients(&mut self, rdb: &RecipeDB) {
-        let mut available =
-            Vec::with_capacity(rdb.known_ingredients.len());
+        let mut available = Vec::with_capacity(rdb.known_ingredients.len());
 
-        available.extend(rdb.known_ingredients.iter().filter_map(
-            |ing| {
-                let legal = !self.used_ingredients.contains(ing)
-                    && !self.detect_cyclical_recipe(rdb, ing);
-                legal.then_some(ing.clone())
-            }
-        ));
+        available.extend(rdb.known_ingredients.iter().filter_map(|ing| {
+            let legal =
+                !self.used_ingredients.contains(ing) && !self.detect_cyclical_recipe(rdb, ing);
+            legal.then_some(ing.clone())
+        }));
         self.available_ingredients = available
     }
     pub fn available_ingredients(&self) -> &Vec<Ingredient> {
@@ -31,9 +28,10 @@ impl RecipeBuilder {
             let recipe = Recipe {
                 craft_time: self.craft_time,
                 output_num: self.output_ingredient.count,
-                inputs: self.input_ingredients.clone()
+                inputs: self.input_ingredients.clone(),
             };
-            rdb.known_recipes.insert(self.output_ingredient.ing.clone(), recipe);
+            rdb.known_recipes
+                .insert(self.output_ingredient.ing.clone(), recipe);
             Ok(())
         } else {
             Err(())
@@ -68,10 +66,10 @@ impl RecipeBuilder {
             }
         }
     }
-    pub fn get_input_count_mut(&mut self, index: usize) -> &mut i32 {
+    pub fn get_input_count_mut(&mut self, index: usize) -> &mut f32 {
         &mut self.input_ingredients[index].count
     }
-    pub fn get_output_count_mut(&mut self) -> &mut i32 {
+    pub fn get_output_count_mut(&mut self) -> &mut f32 {
         &mut self.output_ingredient.count
     }
     pub fn add_blank_input(&mut self) {
@@ -88,17 +86,21 @@ impl RecipeBuilder {
         for ing_w_count in &self.input_ingredients {
             if self.detect_cyclical_recipe(rdb, &ing_w_count.ing) {
                 eprintln!("cycle");
-                return false
+                return false;
             }
-            if self.input_ingredients.iter().filter(|other_ing_c| {
-                other_ing_c.ing.name == ing_w_count.ing.name
-            }).count() > 1 {
+            if self
+                .input_ingredients
+                .iter()
+                .filter(|other_ing_c| other_ing_c.ing.name == ing_w_count.ing.name)
+                .count()
+                > 1
+            {
                 eprintln!("duplicate inputs");
-                return false
+                return false;
             }
-            if ing_w_count.count < 1 {
+            if ing_w_count.count == 0.0 {
                 eprintln!("zero input/output");
-                return false
+                return false;
             }
         }
         true

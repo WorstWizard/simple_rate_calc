@@ -1,12 +1,12 @@
 use eframe::egui::{self, Vec2};
 use std::collections::HashMap;
 
-mod data;
 mod calc;
+mod data;
 mod recipe_builder;
 mod saveload;
-use data::*;
 use calc::*;
+use data::*;
 use recipe_builder::*;
 use saveload::*;
 
@@ -65,7 +65,6 @@ impl eframe::App for RateCalcApp {
                 {
                     self.selected_tab = SelectedTab::Rates
                 };
-
             })
         });
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -78,8 +77,7 @@ impl eframe::App for RateCalcApp {
                             .selected_text(&self.calc.output_ingredient.name);
                         dropdown.show_ui(ui, |ui| {
                             for ingredient in &self.recipe_db.known_ingredients {
-                                let current_selection =
-                                    *ingredient == self.calc.output_ingredient;
+                                let current_selection = *ingredient == self.calc.output_ingredient;
                                 if ui
                                     .selectable_label(current_selection, &ingredient.name)
                                     .clicked()
@@ -111,7 +109,7 @@ impl eframe::App for RateCalcApp {
                                 cols[1].label("Producers");
                                 cols[2].label("Rate");
                             });
-    
+
                             if !self.aggregate_results {
                                 display_rates_info(
                                     ui,
@@ -121,7 +119,11 @@ impl eframe::App for RateCalcApp {
                                     &self.recipe_db.known_recipes,
                                 );
                             } else {
-                                display_aggregate_rates_info(ui, &self.calc, &self.recipe_db.known_recipes)
+                                display_aggregate_rates_info(
+                                    ui,
+                                    &self.calc,
+                                    &self.recipe_db.known_recipes,
+                                )
                             }
                         }
                     });
@@ -136,11 +138,8 @@ impl eframe::App for RateCalcApp {
                             }
                             if cols[1].button("Load").clicked() {
                                 //Load
-                                match load_database() {
-                                    Ok(rdb) => {
-                                        self.recipe_db = rdb;
-                                    },
-                                    Err(_) => ()
+                                if let Ok(rdb) = load_database() {
+                                    self.recipe_db = rdb;
                                 }
                             }
                         })
@@ -153,10 +152,10 @@ impl eframe::App for RateCalcApp {
                         let button_clicked = ui.button("Add").clicked();
                         let text_response = ui.add(add_ingredient_edit);
 
+                        let add_by_keypress = text_response.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         if !self.add_ingredient_text.is_empty()
-                            && (text_response.lost_focus()
-                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                || button_clicked)
+                            && (add_by_keypress || button_clicked)
                         {
                             let new_ing = Ingredient {
                                 name: self.add_ingredient_text.clone(),
@@ -164,6 +163,11 @@ impl eframe::App for RateCalcApp {
                             if !self.recipe_db.known_ingredients.contains(&new_ing) {
                                 self.recipe_db.known_ingredients.push(new_ing);
                                 self.recipe_db.known_ingredients.sort()
+                            }
+                            // If Enter was pressed, refocus the text edit to enable fast ingredient adding
+                            if add_by_keypress {
+                                text_response.request_focus();
+                                self.add_ingredient_text.clear();
                             }
                         }
                     });
@@ -175,14 +179,18 @@ impl eframe::App for RateCalcApp {
                         // Output dropdown
                         ui.horizontal(|ui| {
                             ui.label("Output");
-                            output_ingredient_selector(ui, &self.recipe_db, &mut self.recipe_builder)
+                            output_ingredient_selector(
+                                ui,
+                                &self.recipe_db,
+                                &mut self.recipe_builder,
+                            )
                         });
 
                         // Craft time
                         ui.horizontal(|ui| {
                             let dragval = egui::DragValue::new(&mut self.recipe_builder.craft_time)
                                 .clamp_range(0.0..=f32::MAX)
-                                .max_decimals(1);
+                                .max_decimals(2);
                             ui.label("Craft time ");
                             ui.add(dragval);
                         });
@@ -204,16 +212,15 @@ impl eframe::App for RateCalcApp {
                     // The rest of validity checking is done by the recipe builder on click,
                     // saves frame-by-frame computation, although this would likely be trivial anyway
                     fn ingredient_is_empty(ing_w_c: &IngredientWithCount) -> bool {
-                        ing_w_c.count == 0 || ing_w_c.ing.name.is_empty()
+                        ing_w_c.count == 0.0 || ing_w_c.ing.name.is_empty()
                     }
                     let valid_recipe = !(ingredient_is_empty(self.recipe_builder.get_output())
-                        || self.recipe_builder.inputs()
-                            .any(ingredient_is_empty));
+                        || self.recipe_builder.inputs().any(ingredient_is_empty));
                     let add_recipe_button = egui::Button::new("Add Recipe");
                     if ui.add_enabled(valid_recipe, add_recipe_button).clicked() {
                         match self.recipe_builder.build_recipe(&mut self.recipe_db) {
                             Ok(_) => (),
-                            Err(_) => eprintln!("Broken recipe detected, not adding")
+                            Err(_) => eprintln!("Broken recipe detected, not adding"),
                         }
                     }
                 }
@@ -237,7 +244,7 @@ fn display_rates_info(
             let header = egui::CollapsingHeader::new("").id_source(counter);
             header.default_open(false).show_unindented(ui, |ui| {
                 for (ing, rate) in rates {
-                    counter = display_rates_info(ui, counter, &ing, rate, known_recipes) + 1;
+                    counter = 1 + display_rates_info(ui, counter, &ing, rate, known_recipes);
                 }
             });
         }
@@ -245,7 +252,11 @@ fn display_rates_info(
     counter
 }
 
-fn display_aggregate_rates_info(ui: &mut egui::Ui, calc: &Calculator, known_recipes: &HashMap<Ingredient, Recipe>) {
+fn display_aggregate_rates_info(
+    ui: &mut egui::Ui,
+    calc: &Calculator,
+    known_recipes: &HashMap<Ingredient, Recipe>,
+) {
     let aggregate_rates = calc.compute_aggregate_rates(known_recipes);
     // println!("{:?}", aggregate_rates);
     for (ingredient, producers, rate) in aggregate_rates {
@@ -257,7 +268,7 @@ fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
     ui.columns(3, |cols| {
         cols[0].label(name);
         if producers > 0.0 {
-            cols[1].label(format!("{:.1}", producers));
+            cols[1].label(format!("{:.2}", producers));
         }
         cols[2].label(format!("{:.2}", rate));
     });
@@ -272,22 +283,18 @@ fn input_ingredient_selectors(
 
     let mut remove_input = None;
     for i in 0..recipe_builder.num_inputs() {
-
         if let Some(current) = recipe_builder.get_input(i) {
             let dropdown = egui::ComboBox::from_id_source(i).selected_text(&current.ing.name);
             ui.horizontal(|ui| {
                 {
                     let dragval = egui::DragValue::new(recipe_builder.get_input_count_mut(i))
-                        .clamp_range(0..=100)
-                        .max_decimals(0);
+                        .clamp_range(0.0..=f32::MAX)
+                        .max_decimals(2);
                     ui.add(dragval);
                 }
                 dropdown.show_ui(ui, |ui| {
                     for ing in recipe_builder.available_ingredients().clone() {
-                        if ui
-                            .selectable_label(false, &ing.name)
-                            .clicked()
-                        {
+                        if ui.selectable_label(false, &ing.name).clicked() {
                             recipe_builder.change_input_ingredient(i, ing);
                         }
                     }
@@ -297,28 +304,30 @@ fn input_ingredient_selectors(
                 }
             });
         }
-
     }
     if let Some(i) = remove_input {
         recipe_builder.remove_input(i);
     }
 }
 
-fn output_ingredient_selector(ui: &mut egui::Ui, rdb: &RecipeDB, recipe_builder: &mut RecipeBuilder) {
+fn output_ingredient_selector(
+    ui: &mut egui::Ui,
+    rdb: &RecipeDB,
+    recipe_builder: &mut RecipeBuilder,
+) {
     let dropdown = egui::ComboBox::from_id_source("add_ingredient_output")
         .selected_text(&recipe_builder.get_output().ing.name);
     ui.horizontal(|ui| {
         {
             let dragval = egui::DragValue::new(recipe_builder.get_output_count_mut())
-                .clamp_range(0..=100)
-                .max_decimals(0);
+                .clamp_range(0.0..=f32::MAX)
+                .max_decimals(2);
             ui.add(dragval);
         }
         dropdown.show_ui(ui, |ui| {
             for ing in &rdb.known_ingredients {
-                if *ing != recipe_builder.get_output().ing && ui
-                    .selectable_label(false, &ing.name)
-                    .clicked()
+                if *ing != recipe_builder.get_output().ing
+                    && ui.selectable_label(false, &ing.name).clicked()
                 {
                     recipe_builder.change_output_ingredient(ing.clone());
                 }
