@@ -23,7 +23,7 @@ fn main() {
     eframe::run_native(
         "Simple Rate Calc",
         native_options,
-        Box::new(|_cc| Box::new(RateCalcApp::default())),
+        Box::new(|_cc| Ok(Box::new(RateCalcApp::default()))),
     )
     .unwrap();
 }
@@ -73,7 +73,7 @@ impl eframe::App for RateCalcApp {
                     // Main settings
                     ui.horizontal(|ui| {
                         ui.label("Output");
-                        let dropdown = egui::ComboBox::from_id_source("output")
+                        let dropdown = egui::ComboBox::from_id_salt("output")
                             .selected_text(&self.calc.output_ingredient.name);
                         dropdown.show_ui(ui, |ui| {
                             for ingredient in &self.recipe_db.known_ingredients {
@@ -90,7 +90,7 @@ impl eframe::App for RateCalcApp {
                         ui.label("Rate");
                         ui.add(
                             egui::DragValue::new(&mut self.calc.output_rate)
-                                .clamp_range(0.0..=f32::MAX)
+                                .range(0.0..=f32::MAX)
                                 .suffix("/s"),
                         );
                     });
@@ -189,7 +189,7 @@ impl eframe::App for RateCalcApp {
                         // Craft time
                         ui.horizontal(|ui| {
                             let dragval = egui::DragValue::new(&mut self.recipe_builder.craft_time)
-                                .clamp_range(0.0..=f32::MAX)
+                                .range(0.0..=f32::MAX)
                                 .max_decimals(2);
                             ui.label("Craft time ");
                             ui.add(dragval);
@@ -241,7 +241,7 @@ fn display_rates_info(
     info_display(ui, &output_ingredient.name, num_producers, output_rate);
     if let Some(rates) = input_rates {
         if !rates.is_empty() {
-            let header = egui::CollapsingHeader::new("").id_source(counter);
+            let header = egui::CollapsingHeader::new("").id_salt(counter);
             header.default_open(false).show_unindented(ui, |ui| {
                 for (ing, rate) in rates {
                     counter = 1 + display_rates_info(ui, counter, &ing, rate, known_recipes);
@@ -268,9 +268,9 @@ fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
     ui.columns(3, |cols| {
         cols[0].label(name);
         if producers > 0.0 {
-            cols[1].label(format!("{:.2}", producers));
+            cols[1].label(format!("{producers:.2}"));
         }
-        cols[2].label(format!("{:.2}", rate));
+        cols[2].label(format!("{rate:.2}"));
     });
 }
 
@@ -284,11 +284,11 @@ fn input_ingredient_selectors(
     let mut remove_input = None;
     for i in 0..recipe_builder.num_inputs() {
         if let Some(current) = recipe_builder.get_input(i) {
-            let dropdown = egui::ComboBox::from_id_source(i).selected_text(&current.ing.name);
+            let dropdown = egui::ComboBox::from_id_salt(i).selected_text(&current.ing.name);
             ui.horizontal(|ui| {
                 {
                     let dragval = egui::DragValue::new(recipe_builder.get_input_count_mut(i))
-                        .clamp_range(0.0..=f32::MAX)
+                        .range(0.0..=f32::MAX)
                         .max_decimals(2);
                     ui.add(dragval);
                 }
@@ -315,12 +315,12 @@ fn output_ingredient_selector(
     rdb: &RecipeDB,
     recipe_builder: &mut RecipeBuilder,
 ) {
-    let dropdown = egui::ComboBox::from_id_source("add_ingredient_output")
+    let dropdown = egui::ComboBox::from_id_salt("add_ingredient_output")
         .selected_text(&recipe_builder.get_output().ing.name);
     ui.horizontal(|ui| {
         {
             let dragval = egui::DragValue::new(recipe_builder.get_output_count_mut())
-                .clamp_range(0.0..=f32::MAX)
+                .range(0.0..=f32::MAX)
                 .max_decimals(2);
             ui.add(dragval);
         }

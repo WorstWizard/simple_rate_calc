@@ -7,7 +7,7 @@ use std::io::{BufReader, BufWriter};
 pub fn load_database() -> Result<RecipeDB, ()> {
     let path = FileDialogBuilder::default()
         .set_location("~/")
-        .add_filter("JSON", &["json"])
+        .add_filter("JSON", ["json"])
         .open_single_file()
         .show()
         .unwrap();
@@ -36,7 +36,7 @@ pub fn load_database() -> Result<RecipeDB, ()> {
 pub fn save_database(rdb: &RecipeDB) {
     let path = FileDialogBuilder::default()
         .set_location("~/")
-        .add_filter("JSON", &["json"])
+        .add_filter("JSON", ["json"])
         .open_single_file()
         .show()
         .unwrap();
