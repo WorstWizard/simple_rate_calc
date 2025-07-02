@@ -52,7 +52,7 @@ struct RateCalcApp {
 impl eframe::App for RateCalcApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.columns(2, |cols| {
+            ui.columns_const( |cols: &mut [_; 2]| {
                 if cols[0]
                     .selectable_label(self.selected_tab == SelectedTab::Editing, "Edit Recipes")
                     .clicked()
@@ -104,7 +104,7 @@ impl eframe::App for RateCalcApp {
                     scroll_area.show(ui, |ui| {
                         if !self.calc.output_ingredient.name.is_empty() {
                             // Recursive ingredient list
-                            ui.columns(3, |cols| {
+                            ui.columns_const(|cols: &mut [_; 3]| {
                                 // cols[0].label("");
                                 cols[1].label("Producers");
                                 cols[2].label("Rate");
@@ -131,7 +131,7 @@ impl eframe::App for RateCalcApp {
                 SelectedTab::Editing => {
                     // Save load buttons at the *bottom*
                     egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-                        ui.columns(2, |cols| {
+                        ui.columns_const( |cols: &mut [_; 2]| {
                             if cols[0].button("Save").clicked() {
                                 //Save
                                 save_database(&self.recipe_db);
@@ -265,7 +265,7 @@ fn display_aggregate_rates_info(
 }
 
 fn info_display(ui: &mut egui::Ui, name: &String, producers: f32, rate: f32) {
-    ui.columns(3, |cols| {
+    ui.columns_const(|cols: &mut [_; 3]| {
         cols[0].label(name);
         if producers > 0.0 {
             cols[1].label(format!("{producers:.2}"));
