@@ -1,14 +1,15 @@
 use crate::data::*;
-use native_dialog::FileDialog;
+use native_dialog::FileDialogBuilder;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
 pub fn load_database() -> Result<RecipeDB, ()> {
-    let path = FileDialog::new()
+    let path = FileDialogBuilder::default()
         .set_location("~/")
         .add_filter("JSON", &["json"])
-        .show_open_single_file()
+        .open_single_file()
+        .show()
         .unwrap();
     if let Some(path) = path {
         match File::open(path) {
@@ -33,10 +34,11 @@ pub fn load_database() -> Result<RecipeDB, ()> {
 }
 
 pub fn save_database(rdb: &RecipeDB) {
-    let path = FileDialog::new()
+    let path = FileDialogBuilder::default()
         .set_location("~/")
         .add_filter("JSON", &["json"])
-        .show_save_single_file()
+        .open_single_file()
+        .show()
         .unwrap();
     if let Some(path) = path {
         match File::create(path) {
